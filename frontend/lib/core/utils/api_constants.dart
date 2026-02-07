@@ -1,3 +1,3 @@
 class ApiConstants {
-  static const String baseUrl = "http://10.146.101.80:8080";
+  static const String baseUrl = "http://192.168.137.2:8080";
 }

@@ -115,6 +115,7 @@ class _MyComplaintsState extends State<MyComplaints> {
     final street = c['street'] ?? '';
     final area = c['area'] ?? '';
     final city = c['city'] ?? 'Rajapalayam';
+    final ward = c['ward'] ?? '';
 
     Color statusColor;
     switch(status.toUpperCase()) {
@@ -229,6 +230,20 @@ class _MyComplaintsState extends State<MyComplaints> {
                       ),
                     ],
                   ),
+                  if (ward.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 18),
+                      child: Text(
+                        "Ward No: $ward",
+                        style: TextStyle(
+                          fontSize: 12, 
+                          fontWeight: FontWeight.w600, 
+                          color: const Color(0xFF0D47A1).withOpacity(0.8)
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   const Divider(height: 1),
                   const SizedBox(height: 16),

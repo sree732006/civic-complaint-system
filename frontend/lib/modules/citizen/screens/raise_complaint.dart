@@ -25,6 +25,7 @@ class _RaiseComplaintState extends State<RaiseComplaint> with WidgetsBindingObse
   bool loading = false;
   String? category;
   String? severity;
+  bool? _locationPermissionGranted; 
   Position? currentPosition;
   File? _image;
   bool _isAnalyzing = false;
@@ -60,7 +61,10 @@ class _RaiseComplaintState extends State<RaiseComplaint> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _fetchLocation();
+    // Use postFrameCallback to avoid showing dialog before context is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchLocation();
+    });
   }
 
   @override
@@ -85,13 +89,62 @@ class _RaiseComplaintState extends State<RaiseComplaint> with WidgetsBindingObse
   }
 
   Future<void> _fetchLocation() async {
+    // If we already have permission or explicitly denied, don't ask again
+    if (_locationPermissionGranted == null) {
+      bool? permissionSet = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.location_on, color: Color(0xFF0D47A1)),
+              SizedBox(width: 10),
+              Text("Use Location?"),
+            ],
+          ),
+          content: const Text(
+            "Allow 'Civic Connect' to fetch your current area, street, and city automatically for more accurate reporting?",
+            style: TextStyle(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text("DENY", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0D47A1),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text("ALLOW"),
+            ),
+          ],
+        ),
+      );
+
+      setState(() {
+        _locationPermissionGranted = permissionSet ?? false;
+      });
+
+      if (_locationPermissionGranted == false && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Manual entry enabled. Please fill location fields."),
+            backgroundColor: Color(0xFF1976D2),
+          ),
+        );
+      }
+    }
+
+    if (_locationPermissionGranted != true) {
+      return;
+    }
+
     setState(() => loading = true);
     try {
-      // Check permission explicitly first if needed
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Fetching GPS location..."), duration: Duration(seconds: 1)),
-      );
-      
       final pos = await LocationService.getCurrentLocation();
       currentPosition = pos;
 
@@ -170,12 +223,18 @@ class _RaiseComplaintState extends State<RaiseComplaint> with WidgetsBindingObse
       }
     } catch (e) {
       debugPrint("Location error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to get location: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Location access denied. Please enter address manually."),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.orange[800],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
-    setState(() => loading = false);
-    setState(() => loading = false);
   }
 
   Future<void> _pickImage() async {
@@ -243,10 +302,15 @@ class _RaiseComplaintState extends State<RaiseComplaint> with WidgetsBindingObse
     }
   }
 
-  Future<void> _submitComplaint() async {
-    if (category == null || severity == null || _addressCtrl.text.isEmpty) {
+   Future<void> _submitComplaint() async {
+    // If permission was denied, ensure addressCtrl is not the reason for failure
+    if (_locationPermissionGranted == false && _addressCtrl.text.isEmpty) {
+      _addressCtrl.text = "${_streetCtrl.text}, ${_areaCtrl.text}, ${_cityCtrl.text}";
+    }
+
+    if (category == null || severity == null || _streetCtrl.text.isEmpty || _areaCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
+        const SnackBar(content: Text("Please fill all required fields")),
       );
       return;
     }
@@ -336,9 +400,11 @@ class _RaiseComplaintState extends State<RaiseComplaint> with WidgetsBindingObse
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      currentPosition == null
-                          ? "Fetching your location..."
-                          : "Location accurately detected",
+                      _locationPermissionGranted == false
+                          ? "Manual Entry Mode"
+                          : (currentPosition == null
+                              ? "Fetching your location..."
+                              : "Location accurately detected"),
                       style: const TextStyle(
                         fontSize: 13,
                         color: Color(0xFF0D47A1),
@@ -346,7 +412,7 @@ class _RaiseComplaintState extends State<RaiseComplaint> with WidgetsBindingObse
                       ),
                     ),
                   ),
-                  if (currentPosition == null)
+                  if (currentPosition == null && _locationPermissionGranted != false)
                     const SizedBox(
                       width: 16,
                       height: 16,

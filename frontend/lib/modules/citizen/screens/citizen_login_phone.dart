@@ -22,6 +22,13 @@ class _CitizenLoginPhoneState extends State<CitizenLoginPhone> {
     refreshCaptcha();
   }
 
+  @override
+  void dispose() {
+    phoneCtrl.dispose();
+    captchaCtrl.dispose();
+    super.dispose();
+  }
+
   void refreshCaptcha() async {
     try {
       final res = await AuthService.getCaptcha();
@@ -30,6 +37,7 @@ class _CitizenLoginPhoneState extends State<CitizenLoginPhone> {
         captchaCtrl.clear();
       });
     } catch (e) {
+      print("Captcha refresh error: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to load captcha")),
@@ -188,6 +196,7 @@ class _CitizenLoginPhoneState extends State<CitizenLoginPhone> {
                             IconButton(
                               onPressed: refreshCaptcha,
                               icon: const Icon(Icons.refresh, color: Color(0xFF0D47A1)),
+                              tooltip: "Refresh Captcha",
                               style: IconButton.styleFrom(
                                 backgroundColor: const Color(0xFF0D47A1).withOpacity(0.1),
                                 shape: RoundedRectangleBorder(
